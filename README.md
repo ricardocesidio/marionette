@@ -39,7 +39,9 @@ Or double-click `index.html` in most browsers.
 
 ```bash
 npm install
-npm start
+npm run dev        # launches Electron with dev tools
+# or
+npm start          # launches Electron
 ```
 
 To build an installer:
@@ -131,7 +133,19 @@ marionette/
 npm test
 ```
 
-Runs the core math/skinning/animation test suite via Node.
+Runs the core math/skinning/animation test suite via Node (108 tests).
+
+---
+
+## Recent fixes
+
+- **Undo/redo** — now captures all bone edits: rotation, move, tip/origin drag, arrow-key nudge (previously only new-bone creation was recorded)
+- **Idle rendering** — the editor no longer renders at 60fps when idle; the animation loop only runs during playback or interaction, saving CPU/battery
+- **`setKey` performance** — key insertion uses binary search instead of sorting the entire key array (O(log n) vs O(n log n) per call)
+- **CSS typo** — fixed `let(--dim)` → `var(--dim)` so the placeholder text renders at the correct muted color
+- **Game handoff** — no longer opens a blank game page when the image is too large for localStorage; shows a clear error message instead
+- **Test driver** — fixed `st.clip` undefined crash in the headless visual test suite
+- **Mesh detail** — default slider value now matches the displayed label (28)
 
 ---
 
