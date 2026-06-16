@@ -1,0 +1,45 @@
+{
+  "name": "marionette-studio",
+  "productName": "Marionette Studio",
+  "version": "1.0.0",
+  "description": "2D skeletal animation studio — load an image, rig a skeleton inside it, animate with keyframes, play it in a game.",
+  "main": "desktop/main.js",
+  "author": "Ricardo",
+  "license": "MIT",
+  "scripts": {
+    "start": "node desktop/dev.js",
+    "dev": "node desktop/dev.js",
+    "test": "bash tests/run.sh",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.ricardo.marionette-studio",
+    "productName": "Marionette Studio",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "game.html",
+      "css/**",
+      "js/**",
+      "desktop/**"
+    ],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.graphics-design"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage",
+      "category": "Graphics"
+    }
+  },
+  "devDependencies": {
+    "electron": "^42.4.0",
+    "electron-builder": "^26.15.2"
+  }
+}

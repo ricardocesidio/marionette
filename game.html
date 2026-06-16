@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marionette — Game Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="game">
+<main>
+  <canvas id="game"></canvas>
+  <div class="gamehud">
+    <h1>🎮 Game Demo</h1>
+    <p id="status">No character loaded yet — use “Test in Game” in the editor, or load an exported file:</p>
+    <p><input type="file" id="charFile" accept=".json,application/json"></p>
+    <p>← → or A/D to walk. The character is deformed live by your skeleton.</p>
+  </div>
+</main>
+<script src="js/math2d.js"></script>
+<script src="js/model.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

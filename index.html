@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Marionette Studio — 2D Skeletal Character Editor</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <div class="brand">🦴 Marionette Studio</div>
+  <button id="modeRig" class="mode active" title="Build the skeleton (1)">1 · Rig</button>
+  <button id="modeAnimate" class="mode" title="Pose and keyframe (2)">2 · Animate</button>
+  <div class="spacer"></div>
+  <button id="btnTest" title="Open the game demo with this character">▶ Test in Game</button>
+  <button id="btnExport" title="Download the character as JSON">Export</button>
+  <button id="btnImport" title="Load a previously exported character">Import</button>
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+</header>
+
+<main>
+  <aside class="panel left">
+    <h3>Image</h3>
+    <button id="btnLoadImage">Load image…</button>
+    <button id="btnSample">Generate sample character</button>
+    <button id="btnReadyChar" title="Image + skeleton + animation, ready for Test in Game">🎮 Ready-to-test character</button>
+    <input type="file" id="imageFile" accept="image/*" hidden>
+
+    <h3>Skeleton</h3>
+    <button id="btnAutoRig" title="Analyse the image and place the skeleton on the character automatically">✨ Auto-detect skeleton</button>
+    <button id="btnHumanoid" title="Create a full named rig: spine, head, arms, forearms, hands, thighs, shins, feet">🧍 Humanoid preset</button>
+
+    <h3>Mesh</h3>
+    <label>Detail
+      <input type="range" id="meshDetail" min="10" max="50" value="28">
+      <span id="meshDetailVal">20</span>
+    </label>
+    <label><input type="checkbox" id="chkMesh"> Show mesh</label>
+    <label><input type="checkbox" id="chkBones" checked> Show bones</label>
+
+    <h3>How to</h3>
+    <ol class="help">
+      <li>Load a PNG — or hit <b>Generate sample character</b>.</li>
+      <li><b>Rig:</b> drag on the image to draw a bone. Drag from a bone's <b>tip</b> to chain a child bone. Click selects, <b>Delete</b> removes.</li>
+      <li>Or skip the manual work: <b>✨ Auto-detect skeleton</b> analyses the image and places the bones on the character by itself (best with a transparent or plain background). <b>🧍 Humanoid preset</b> gives the same named bones fitted to the image box instead. Either way, <b>Alt-drag</b> any joint to fine-tune — that works on hand-drawn bones too.</li>
+      <li><b>Animate:</b> drag bones to rotate them. <b>Shift-drag</b> the root bone to move the whole character. Keys are saved at the playhead automatically.</li>
+      <li>Scrub the timeline, press <b>Space</b> to play.</li>
+      <li><b>Export</b> the character, or hit <b>▶ Test in Game</b>.</li>
+    </ol>
+  </aside>
+
+  <section class="stage-wrap">
+    <canvas id="stage"></canvas>
+    <div id="toast"></div>
+    <div id="loading"><span>Loading image…</span></div>
+    <div class="camera-panel">
+      <button id="btnZoomIn" title="Zoom in">+</button>
+      <button id="btnZoomOut" title="Zoom out">−</button>
+      <button id="btnZoomReset" title="Reset zoom">⟲</button>
+    </div>
+  </section>
+
+  <aside class="panel right">
+    <h3>Bones</h3>
+    <ul id="boneList"></ul>
+    <div id="boneProps" hidden>
+      <h3>Selected bone</h3>
+      <label>Name <input id="boneName" type="text"></label>
+      <div id="boneInfo" class="dim"></div>
+      <button id="btnDeleteBone" class="danger">Delete bone</button>
+    </div>
+  </aside>
+</main>
+
+<footer id="transport">
+  <button id="btnPlay" title="Play/pause (Space)">▶</button>
+  <button id="btnAddKey" title="Add or update a key at the playhead">◆ Key</button>
+  <button id="btnDelKey" title="Delete the key at the playhead">✕ Key</button>
+  <select id="animSelect" title="Current animation"></select>
+  <canvas id="timeline"></canvas>
+  <label>⏱ <input id="duration" type="number" min="0.2" max="60" step="0.1" value="2">s</label>
+  <label><input type="checkbox" id="chkLoop" checked> Loop</label>
+  <label><input type="checkbox" id="chkAutoKey" checked> Auto-key</label>
+  <span id="timeLabel" class="dim">0.00s</span>
+  <span class="spacer"></span>
+  <button id="btnUndo" title="Undo (Ctrl+Z)">↶</button>
+  <button id="btnRedo" title="Redo (Ctrl+Shift+Z)">↷</button>
+</footer>
+
+<script src="js/math2d.js"></script>
+<script src="js/model.js"></script>
+<script src="js/autorig.js"></script>
+<script src="js/render.js"></script>
+<script src="js/editor.js"></script>
+<script src="js/timeline.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
