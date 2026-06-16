@@ -30,7 +30,13 @@ python3 -m http.server 8000
 Or double-click `index.html` in most browsers.
 
 1. Click **Generate sample character** or load your own image
-2. Switch to **Rig mode (1)** — drag on the image to draw bones, or click **Humanoid preset** for a full 17-bone skeleton
+2. Switch to **Rig mode (1)**:
+   - **Drag joint balls** to move bone connections (parent bone follows)
+   - **Drag tip balls** to re-aim and resize a bone
+   - **Drag bone body** to slide the whole bone
+   - **Alt+click a tip** to chain a child bone from it
+   - Click empty space to draw a new bone
+   - Click **Humanoid preset** for a full 17-bone skeleton
 3. Switch to **Animate mode (2)** — drag bones to pose, keyframes are recorded automatically
 4. Press **Play** to see the animation
 5. Click **Test in Game** to run your character in a simple game demo
@@ -139,6 +145,8 @@ Runs the core math/skinning/animation test suite via Node (108 tests).
 
 ## Recent fixes
 
+- **ZBrush-like rigging** — grab any joint ball to move it; parent bones resize to stay connected, children follow
+- **Drag-to-move bones** — click and drag any bone body to translate it in rig mode
 - **Undo/redo** — now captures all bone edits: rotation, move, tip/origin drag, arrow-key nudge (previously only new-bone creation was recorded)
 - **Idle rendering** — the editor no longer renders at 60fps when idle; the animation loop only runs during playback or interaction, saving CPU/battery
 - **`setKey` performance** — key insertion uses binary search instead of sorting the entire key array (O(log n) vs O(n log n) per call)
