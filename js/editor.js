@@ -470,29 +470,33 @@ RIG.editor = (function () {
 
     if (state.mode === 'rig') {
       if (ev.altKey) {
+        // Alt+tip: chain a child bone from the clicked tip
         let ati = pickTip(p.x, p.y, true);
         if (ati >= 0) {
-          setSelection([bones[ati].id]);
-          state.drag = { kind: 'tip', boneId: bones[ati].id };
-          refreshPanels();
-          return;
-        }
-        let aoi = pickOrigin(p.x, p.y);
-        if (aoi >= 0) {
-          setSelection([bones[aoi].id]);
-          state.drag = { kind: 'origin', boneId: bones[aoi].id };
-          refreshPanels();
+          let seg = state.skeleton.worldSegments(true)[ati];
+          state.drag = { kind: 'newbone', parentId: bones[ati].id, sx: seg.x1, sy: seg.y1, ex: p.x, ey: p.y };
           return;
         }
         return;
       }
 
-      let ti = pickTip(p.x, p.y, true);
-      if (ti >= 0) {
-        let seg = state.skeleton.worldSegments(true)[ti];
-        state.drag = { kind: 'newbone', parentId: bones[ti].id, sx: seg.x1, sy: seg.y1, ex: p.x, ey: p.y };
+      // Pick origin ball → move joint
+      let oi = pickOrigin(p.x, p.y);
+      if (oi >= 0) {
+        setSelection([bones[oi].id]);
+        state.drag = { kind: 'origin', boneId: bones[oi].id };
+        refreshPanels();
         return;
       }
+      // Pick tip ball → re-aim/resize
+      let ti = pickTip(p.x, p.y, true);
+      if (ti >= 0) {
+        setSelection([bones[ti].id]);
+        state.drag = { kind: 'tip', boneId: bones[ti].id };
+        refreshPanels();
+        return;
+      }
+      // Pick bone body → translate (drag to move)
       let bi = pickBone(p.x, p.y, true);
       if (bi >= 0) {
         if (ctrl) { toggleSelection(bones[bi].id); }
@@ -501,6 +505,7 @@ RIG.editor = (function () {
         state.drag = { kind: 'translate', boneId: bones[bi].id, lastX: p.x, lastY: p.y, moved: false };
         return;
       }
+      // Empty space → chain a child from the selected bone's tip
       if (!ctrl) clearSelection();
       state.drag = { kind: 'newbone', parentId: state.selectedId, sx: p.x, sy: p.y, ex: p.x, ey: p.y };
       return;
@@ -903,7 +908,7 @@ RIG.editor = (function () {
     ctx.font = '12px sans-serif';
     ctx.fillText(
       state.mode === 'rig'
-        ? 'RIG — drag a bone to move it · Tip: child · Alt: adjust · Arrows: nudge · Ctrl+click: multi · Del: remove'
+        ? 'RIG — drag joints to move · tip to resize · body to slide · Alt+tip: chain child · Arrows: nudge · Del: remove'
         : 'ANIMATE — drag a bone to rotate · Shift-drag root to move · Space: play',
       12, h - 12);
     ctx.fillText(Math.round(state.cameraZoom * 100) + '%', w - 48, h - 12);
