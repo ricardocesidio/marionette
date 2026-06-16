@@ -121,6 +121,10 @@ RIG.editor = (function () {
     return state.selectedId != null ? state.skeleton.byId(state.selectedId) : null;
   }
 
+  function scheduleRender() {
+    if (RIG.editor && RIG.editor.requestFrame) RIG.editor.requestFrame();
+  }
+
   function invalidateBind() {
     state.bound = false;
   }
@@ -458,6 +462,7 @@ RIG.editor = (function () {
 
   function onPointerDown(ev) {
     if (!state.image) return;
+    scheduleRender();
     stage.setPointerCapture(ev.pointerId);
     let p = stagePoint(ev);
     let bones = state.skeleton.bones;
@@ -550,6 +555,7 @@ RIG.editor = (function () {
       });
       invalidateBind();
       refreshProps();
+      scheduleRender();
       return;
     }
     if (d.kind === 'origin') {
@@ -561,6 +567,7 @@ RIG.editor = (function () {
       bone.y = lp.y;
       invalidateBind();
       refreshProps();
+      scheduleRender();
       return;
     }
 
@@ -574,23 +581,29 @@ RIG.editor = (function () {
     }
     if (state.autoKey) currentClip().setKey(state.time, state.skeleton);
     refreshProps();
+    scheduleRender();
   }
 
   function onPointerUp(ev) {
     let d = state.drag;
     state.drag = null;
-    if (!d || d.kind !== 'newbone') return;
-    let len = Math.hypot(d.ex - d.sx, d.ey - d.sy);
-    if (len < 8) {
-      clearSelection();
+    if (!d) return;
+    if (d.kind === 'newbone') {
+      let len = Math.hypot(d.ex - d.sx, d.ey - d.sy);
+      if (len < 8) {
+        clearSelection();
+        refreshPanels();
+        return;
+      }
+      saveSnapshot();
+      let bone = state.skeleton.addBoneWorld(d.parentId, d.sx, d.sy, d.ex, d.ey);
+      setSelection([bone.id]);
+      invalidateBind();
       refreshPanels();
-      return;
+    } else {
+      saveSnapshot();
+      refreshPanels();
     }
-    saveSnapshot();
-    let bone = state.skeleton.addBoneWorld(d.parentId, d.sx, d.sy, d.ex, d.ey);
-    setSelection([bone.id]);
-    invalidateBind();
-    refreshPanels();
   }
 
   // ------------------------------------------------------------ keyboard
@@ -611,6 +624,7 @@ RIG.editor = (function () {
       if (ev.key === 'z' && ev.shiftKey) { redo(); ev.preventDefault(); }
       else if (ev.key === 'z') { undo(); ev.preventDefault(); }
     } else if (state.mode === 'rig' && state.selectedIds.length && ev.key.startsWith('Arrow')) {
+      saveSnapshot();
       let step = ev.shiftKey ? 5 : 1;
       let dx = 0, dy = 0;
       if (ev.key === 'ArrowRight') dx = step;
@@ -671,6 +685,7 @@ RIG.editor = (function () {
     if (!state.playing && !state.loop && state.time >= clip.duration) state.time = 0;
     state.playing = !state.playing;
     refreshTransport();
+    scheduleRender();
   }
 
   // ------------------------------------------------------- export/import
@@ -721,6 +736,7 @@ RIG.editor = (function () {
       localStorage.setItem('marionette.character', JSON.stringify(model.characterToJSON(state)));
     } catch (e) {
       toast('Image too large for the quick handoff — Export instead, then load the file in the game page.');
+      return;
     }
     window.open('game.html');
   }
@@ -731,6 +747,7 @@ RIG.editor = (function () {
     refreshBoneList();
     refreshProps();
     refreshTransport();
+    scheduleRender();
   }
 
   function refreshBoneList() {
@@ -740,7 +757,7 @@ RIG.editor = (function () {
     if (!sk.bones.length) {
       let li = document.createElement('li');
       li.textContent = 'No bones yet';
-      li.style.color = 'let(--dim)';
+      li.style.color = 'var(--dim)';
       li.style.cursor = 'default';
       ul.appendChild(li);
       return;
@@ -917,10 +934,10 @@ RIG.editor = (function () {
       if (bone) { bone.name = e.target.value || bone.name; refreshBoneList(); }
     };
 
-    $('btnZoomIn').onclick = function () { state.cameraZoom = Math.min(5, state.cameraZoom * 1.3); };
-    $('btnZoomOut').onclick = function () { state.cameraZoom = Math.max(0.1, state.cameraZoom / 1.3); };
+    $('btnZoomIn').onclick = function () { state.cameraZoom = Math.min(5, state.cameraZoom * 1.3); scheduleRender(); };
+    $('btnZoomOut').onclick = function () { state.cameraZoom = Math.max(0.1, state.cameraZoom / 1.3); scheduleRender(); };
     $('btnZoomReset').onclick = function () {
-      state.cameraX = 0; state.cameraY = 0; state.cameraZoom = 1;
+      state.cameraX = 0; state.cameraY = 0; state.cameraZoom = 1; scheduleRender();
     };
 
     let animSel = $('animSelect');
@@ -950,9 +967,10 @@ RIG.editor = (function () {
       state.divisions = parseInt(e.target.value, 10);
       $('meshDetailVal').textContent = state.divisions;
       invalidateBind();
+      scheduleRender();
     };
-    $('chkMesh').onchange = function (e) { state.showMesh = e.target.checked; };
-    $('chkBones').onchange = function (e) { state.showBones = e.target.checked; };
+    $('chkMesh').onchange = function (e) { state.showMesh = e.target.checked; scheduleRender(); };
+    $('chkBones').onchange = function (e) { state.showBones = e.target.checked; scheduleRender(); };
 
     refreshPanels();
   }

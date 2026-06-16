@@ -17,7 +17,6 @@ var RIG = RIG || {};
   let AUTO_WEIGHT_K = 4;
   let AUTO_WEIGHT_POW = 2;
   let WEIGHT_SMOOTH_PASSES = 2;
-  let TRI_EXPAND = 0.75;
   let HIT_TOLERANCE = 10;
   let TIP_TOLERANCE = 12;
   let MIN_BONE_LENGTH = 4;
@@ -339,8 +338,14 @@ var RIG = RIG || {};
       }
       let key = { t: t, pose: pose };
       if (easing && easing !== EASING_LINEAR) key.easing = easing;
-      this.keys.push(key);
-      this.keys.sort(function (a, b) { return a.t - b.t; });
+      // Binary search insertion to maintain sorted order
+      let lo = 0, hi = this.keys.length;
+      while (lo < hi) {
+        let mid = (lo + hi) >>> 1;
+        if (this.keys[mid].t < t) lo = mid + 1;
+        else hi = mid;
+      }
+      this.keys.splice(lo, 0, key);
       return key;
     }
 

@@ -25,14 +25,14 @@
       spine.poseRot = 0.10;
       armR.poseRot = -1.3; // wave!
       armL.poseRot = 0.35;
-      st.clip.setKey(0, sk);
+      ed.currentClip().setKey(0, sk);
       // Hand the character to the game page, like the "Test in Game" button.
       try {
         localStorage.setItem('marionette.character',
           JSON.stringify(RIG.model.characterToJSON(st)));
       } catch (e) { /* headless quota */ }
       document.title = 'DRIVE-OK bones=' + sk.bones.length +
-        ' keys=' + st.clip.keys.length + ' mode=' + st.mode;
+        ' keys=' + ed.currentClip().keys.length + ' mode=' + st.mode;
     }, 500);
   }, 300);
 })();

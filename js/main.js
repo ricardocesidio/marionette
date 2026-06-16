@@ -6,6 +6,8 @@
   RIG.timeline.init(ed);
 
   let last = performance.now();
+  let rAF = null;
+
   function frame(now) {
     let dt = Math.min(0.05, (now - last) / 1000);
     last = now;
@@ -28,7 +30,20 @@
 
     ed.render();
     RIG.timeline.draw();
-    requestAnimationFrame(frame);
+
+    if (st.playing || st.drag) {
+      rAF = requestAnimationFrame(frame);
+    } else {
+      rAF = null;
+    }
   }
-  requestAnimationFrame(frame);
+
+  ed.requestFrame = function () {
+    if (rAF == null) {
+      last = performance.now();
+      rAF = requestAnimationFrame(frame);
+    }
+  };
+
+  ed.requestFrame();
 })();

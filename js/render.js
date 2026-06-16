@@ -19,8 +19,6 @@ RIG.render = (function () {
   let JOINT_FILL = '#fff';
   let OUTLINE = 'rgba(0,0,0,0.55)';
 
-  let _pathPool = [];
-
   function texTri(ctx, img, x0, y0, x1, y1, x2, y2, u0, v0, u1, v1, u2, v2) {
     let det = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0);
     if (Math.abs(det) < DET_EPSILON) return;
