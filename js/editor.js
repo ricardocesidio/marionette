@@ -484,7 +484,7 @@ RIG.editor = (function () {
       let oi = pickOrigin(p.x, p.y);
       if (oi >= 0) {
         setSelection([bones[oi].id]);
-        state.drag = { kind: 'origin', boneId: bones[oi].id };
+        state.drag = { kind: 'origin', boneId: bones[oi].id, lastX: p.x, lastY: p.y, moved: false };
         refreshPanels();
         return;
       }
@@ -492,7 +492,7 @@ RIG.editor = (function () {
       let ti = pickTip(p.x, p.y, true);
       if (ti >= 0) {
         setSelection([bones[ti].id]);
-        state.drag = { kind: 'tip', boneId: bones[ti].id };
+        state.drag = { kind: 'tip', boneId: bones[ti].id, lastX: p.x, lastY: p.y, moved: false };
         refreshPanels();
         return;
       }
@@ -552,6 +552,7 @@ RIG.editor = (function () {
       let oldLen = bone.length;
       bone.rot = Math.atan2(p.y - bm[5], p.x - bm[4]) - parentAngle;
       bone.length = Math.max(4, Math.hypot(p.x - bm[4], p.y - bm[5]));
+      d.moved = true;
       // Children chained to the old tip stay attached to the new one.
       sk.bones.forEach(function (c) {
         if (c.parentId === bone.id && Math.abs(c.x - oldLen) < 3 && Math.abs(c.y) < 3) {
@@ -565,12 +566,41 @@ RIG.editor = (function () {
       return;
     }
     if (d.kind === 'origin') {
-      // Move the joint: rewrite the rest offset in the parent's frame.
-      let sk2 = state.skeleton;
-      let pm = bone.parentId != null ? sk2.worldMatrices(true)[sk2.indexOf(bone.parentId)] : null;
-      let lp = pm ? M.apply(M.invert(pm), p.x, p.y) : p;
-      bone.x = lp.x;
-      bone.y = lp.y;
+      // Move the joint: resize parent's tip to follow, keep bones attached.
+      if (bone.parentId != null) {
+        let sk2 = state.skeleton;
+        let ws = sk2.worldMatrices(true);
+        let pi = sk2.indexOf(bone.parentId);
+        if (pi >= 0) {
+          let pm = ws[pi];
+          let parentBone = sk2.bones[pi];
+          let parentPA = parentBone.parentId != null ? M.angleOf(ws[sk2.indexOf(parentBone.parentId)]) : 0;
+          let oldLen = parentBone.length;
+          parentBone.rot = Math.atan2(p.y - pm[5], p.x - pm[4]) - parentPA;
+          parentBone.length = Math.max(4, Math.hypot(p.x - pm[4], p.y - pm[5]));
+          d.moved = true;
+          let inv = M.invert(pm);
+          let lp = M.apply(inv, p.x, p.y);
+          bone.x = lp.x;
+          bone.y = lp.y;
+          // Keep chained children attached to the new tip
+          sk2.bones.forEach(function (c) {
+            if (c.parentId === parentBone.id && Math.abs(c.x - oldLen) < 3 && Math.abs(c.y) < 3) {
+              c.x = parentBone.length;
+              c.y = 0;
+            }
+          });
+          invalidateBind();
+          refreshProps();
+          scheduleRender();
+          return;
+        }
+      }
+      // Root bone: translate by delta (smooth drag)
+      let dx = p.x - d.lastX, dy = p.y - d.lastY;
+      d.lastX = p.x; d.lastY = p.y;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) d.moved = true;
+      if (d.moved) { bone.x += dx; bone.y += dy; }
       invalidateBind();
       refreshProps();
       scheduleRender();
@@ -627,7 +657,7 @@ RIG.editor = (function () {
       setSelection([bone.id]);
       invalidateBind();
       refreshPanels();
-    } else if (d.kind === 'translate' && !d.moved) {
+    } else if ((d.kind === 'translate' || d.kind === 'origin') && !d.moved) {
       refreshPanels();
     } else {
       saveSnapshot();
