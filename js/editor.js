@@ -28,10 +28,147 @@ RIG.editor = (function () {
     showMesh: false,
     drag: null,
     cameraX: 0, cameraY: 0, cameraZoom: 1,
+    mirror: {
+      direction: 'lr',     // lr | rl | tb | bt
+      scope: 'chain',      // selected | chain | side | skeleton
+      conflict: 'update',  // update | copy | skip
+      axisX: 0, axisY: 0,
+      show: true,
+    },
   };
 
   function currentClip() {
     return state.animations[state.currentAnim] || state.animations[0];
+  }
+
+  // ---------------------------------------------------------- mirror rig
+
+  function isVerticalMirror() {
+    return state.mirror.direction === 'lr' || state.mirror.direction === 'rl';
+  }
+
+  function mirrorAxisObj() {
+    return isVerticalMirror()
+      ? { type: 'vertical', value: state.mirror.axisX }
+      : { type: 'horizontal', value: state.mirror.axisY };
+  }
+
+  function resetMirrorAxis() {
+    state.mirror.axisX = state.offX + state.drawnW / 2;
+    state.mirror.axisY = state.offY + state.drawnH / 2;
+  }
+
+  function syncMirrorAxisInput() {
+    let inp = $('mirrorAxis');
+    if (!inp || document.activeElement === inp) return;
+    inp.value = Math.round(isVerticalMirror() ? state.mirror.axisX : state.mirror.axisY);
+  }
+
+  // Bones whose rest origin sits on the source side of the axis (centre bones,
+  // within a small dead-zone, are treated as shared and left alone).
+  function offAxisIds(sourceSideOnly) {
+    let segs = state.skeleton.worldSegments(true);
+    let vertical = isVerticalMirror();
+    let dz = vertical ? Math.max(2, state.drawnW * 0.01) : Math.max(2, state.drawnH * 0.01);
+    let axis = vertical ? state.mirror.axisX : state.mirror.axisY;
+    let dir = state.mirror.direction;
+    let ids = [];
+    state.skeleton.bones.forEach(function (b, i) {
+      let p = vertical ? segs[i].x0 : segs[i].y0;
+      if (Math.abs(p - axis) <= dz) return; // centre / shared
+      if (!sourceSideOnly) { ids.push(b.id); return; }
+      let onSource = (dir === 'lr' || dir === 'tb') ? p < axis : p > axis;
+      if (onSource) ids.push(b.id);
+    });
+    return ids;
+  }
+
+  function descendantsOf(ids) {
+    let set = {};
+    ids.forEach(function (id) { set[id] = true; });
+    let changed = true;
+    while (changed) {
+      changed = false;
+      state.skeleton.bones.forEach(function (b) {
+        if (b.parentId != null && set[b.parentId] && !set[b.id]) { set[b.id] = true; changed = true; }
+      });
+    }
+    return Object.keys(set).map(Number);
+  }
+
+  function collectMirrorSourceIds() {
+    switch (state.mirror.scope) {
+      case 'selected': return state.selectedIds.slice();
+      case 'chain': return descendantsOf(state.selectedIds);
+      case 'side': return offAxisIds(true);
+      default: return offAxisIds(false); // entire skeleton
+    }
+  }
+
+  function doMirrorBones() {
+    if (!state.image || !state.skeleton.bones.length) return toast('Rig a character first.');
+    if (state.mode !== 'rig') return toast('Switch to Rig mode (1) to mirror bones.');
+    let ids = collectMirrorSourceIds();
+    if (!ids.length) {
+      let needsSel = state.mirror.scope === 'selected' || state.mirror.scope === 'chain';
+      return toast(needsSel ? 'Select a bone to mirror first.' : 'No bones on the source side of the axis.');
+    }
+    saveSnapshot();
+    let res = RIG.mirror.mirrorBones(state.skeleton, {
+      sourceIds: ids,
+      direction: state.mirror.direction,
+      axis: mirrorAxisObj(),
+      conflict: state.mirror.conflict,
+    });
+    invalidateBind();
+    let made = res.created.concat(res.updated);
+    if (made.length) setSelection(made.map(function (b) { return b.id; }));
+    refreshPanels();
+    toast('Mirrored — ' + res.created.length + ' new, ' + res.updated.length + ' updated' +
+      (res.skipped.length ? ', ' + res.skipped.length + ' skipped' : '') + '.');
+  }
+
+  function doMirrorPose() {
+    if (state.mode !== 'animate') return toast('Switch to Animate mode (2) to mirror a pose.');
+    if (!state.skeleton.bones.length) return toast('Rig a character first.');
+    saveSnapshot();
+    let opts = { direction: state.mirror.direction, axis: mirrorAxisObj() };
+    if (state.selectedIds.length) opts.sourceIds = state.selectedIds.slice();
+    let res = RIG.mirror.mirrorPose(state.skeleton, opts);
+    if (!res.applied) return toast('No matching bones on the other side (need left/right names).');
+    if (state.autoKey && currentClip()) currentClip().setKey(state.time, state.skeleton);
+    refreshProps();
+    scheduleRender();
+    toast('Pose mirrored to ' + res.applied + ' bone' + (res.applied > 1 ? 's' : '') + '.');
+  }
+
+  function doMirrorAnimation() {
+    if (state.mode !== 'animate') return toast('Switch to Animate mode (2) to mirror animation.');
+    let clip = currentClip();
+    if (!clip || !clip.keys.length) return toast('No keyframes to mirror.');
+    saveSnapshot();
+    let opts = { direction: state.mirror.direction, axis: mirrorAxisObj() };
+    if (state.selectedIds.length) opts.sourceIds = state.selectedIds.slice();
+    let res = RIG.mirror.mirrorAnimation(clip, state.skeleton, opts);
+    if (!res.pairs) return toast('No matching bones on the other side (need left/right names).');
+    clip.apply(state.time, state.skeleton, state.loop);
+    refreshPanels();
+    toast('Animation mirrored across ' + res.pairs + ' bone pair' + (res.pairs !== 1 ? 's' : '') +
+      ' (' + res.keys + ' key' + (res.keys !== 1 ? 's' : '') + ').');
+  }
+
+  // Hit-test the on-stage axis handle: 'knob' (always grabbable) or 'line'.
+  function nearMirrorAxis(p) {
+    if (!state.mirror.show || !state.image) return null;
+    let m = state.mirror;
+    if (isVerticalMirror()) {
+      if (Math.hypot(p.x - m.axisX, p.y - (state.offY - 18)) <= 11) return 'knob';
+      if (Math.abs(p.x - m.axisX) <= 6 && p.y > state.offY - 30 && p.y < state.offY + state.drawnH + 30) return 'line';
+    } else {
+      if (Math.hypot(p.x - (state.offX - 18), p.y - m.axisY) <= 11) return 'knob';
+      if (Math.abs(p.y - m.axisY) <= 6 && p.x > state.offX - 30 && p.x < state.offX + state.drawnW + 30) return 'line';
+    }
+    return null;
   }
 
   function setSelection(ids) {
@@ -188,6 +325,7 @@ RIG.editor = (function () {
         state.drawnH = state.natH * s;
         state.offX = Math.round((stage.clientWidth - state.drawnW) / 2);
         state.offY = Math.round((stage.clientHeight - state.drawnH) / 2);
+        resetMirrorAxis();
         state.skeleton = new model.Skeleton();
         state.animations = [new model.Clip('idle', currentClip().duration || 2)];
         state.currentAnim = 0;
@@ -357,6 +495,7 @@ RIG.editor = (function () {
       state.drawnW = w * s; state.drawnH = h * s;
       state.offX = Math.round((stage.clientWidth - state.drawnW) / 2);
       state.offY = Math.round((stage.clientHeight - state.drawnH) / 2);
+      resetMirrorAxis();
 
       let sk = new model.Skeleton();
       let ox = state.offX, oy = state.offY, dw = state.drawnW, dh = state.drawnH;
@@ -469,6 +608,9 @@ RIG.editor = (function () {
     let ctrl = ev.ctrlKey || ev.metaKey;
 
     if (state.mode === 'rig') {
+      let axHit = nearMirrorAxis(p);
+      if (axHit === 'knob') { state.drag = { kind: 'axis' }; return; }
+
       if (ev.altKey) {
         // Alt+tip: chain a child bone from the clicked tip
         let ati = pickTip(p.x, p.y, true);
@@ -505,6 +647,8 @@ RIG.editor = (function () {
         state.drag = { kind: 'translate', boneId: bones[bi].id, lastX: p.x, lastY: p.y, moved: false };
         return;
       }
+      // Grab the mirror axis line itself (only when no bone was hit)
+      if (axHit === 'line') { state.drag = { kind: 'axis' }; return; }
       // Empty space → chain a child from the selected bone's tip
       if (!ctrl) clearSelection();
       state.drag = { kind: 'newbone', parentId: state.selectedId, sx: p.x, sy: p.y, ex: p.x, ey: p.y };
@@ -537,6 +681,14 @@ RIG.editor = (function () {
 
     if (d.kind === 'newbone') {
       d.ex = p.x; d.ey = p.y;
+      return;
+    }
+
+    if (d.kind === 'axis') {
+      if (isVerticalMirror()) state.mirror.axisX = p.x;
+      else state.mirror.axisY = p.y;
+      syncMirrorAxisInput();
+      scheduleRender();
       return;
     }
 
@@ -645,6 +797,10 @@ RIG.editor = (function () {
     let d = state.drag;
     state.drag = null;
     if (!d) return;
+    if (d.kind === 'axis') {
+      syncMirrorAxisInput();
+      return;
+    }
     if (d.kind === 'newbone') {
       let len = Math.hypot(d.ex - d.sx, d.ey - d.sy);
       if (len < 8) {
@@ -772,6 +928,7 @@ RIG.editor = (function () {
         state.drawnH = data.drawnH;
         state.offX = data.offX;
         state.offY = data.offY;
+        resetMirrorAxis();
         state.divisions = data.divisions || 20;
         state.skeleton = model.skeletonFromJSON(data);
         state.animations = model.animationsFromJSON(data);
@@ -806,6 +963,7 @@ RIG.editor = (function () {
     refreshBoneList();
     refreshProps();
     refreshTransport();
+    syncMirrorAxisInput();
     scheduleRender();
   }
 
@@ -932,6 +1090,8 @@ RIG.editor = (function () {
       if (state.showBones) R.drawBones(ctx, state.skeleton, false, state.selectedIds);
     }
 
+    if (state.mirror.show) drawMirrorAxis(ctx);
+
     ctx.restore();
 
     ctx.fillStyle = 'rgba(216,220,227,0.55)';
@@ -942,6 +1102,46 @@ RIG.editor = (function () {
         : 'ANIMATE — drag a bone to rotate · Shift-drag root to move · Space: play',
       12, h - 12);
     ctx.fillText(Math.round(state.cameraZoom * 100) + '%', w - 48, h - 12);
+  }
+
+  function axisArrow(ctx, x, y, dx, dy, s) {
+    ctx.beginPath();
+    if (dx) { ctx.moveTo(x, y - s); ctx.lineTo(x, y + s); ctx.lineTo(x + dx * s * 1.5, y); }
+    else { ctx.moveTo(x - s, y); ctx.lineTo(x + s, y); ctx.lineTo(x, y + dy * s * 1.5); }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Dashed symmetry axis with a draggable knob and direction arrows.
+  function drawMirrorAxis(ctx) {
+    let m = state.mirror;
+    let vertical = isVerticalMirror();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(91,168,255,0.75)';
+    ctx.fillStyle = 'rgba(91,168,255,0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([7, 5]);
+    ctx.beginPath();
+    if (vertical) {
+      let x = m.axisX, y0 = state.offY - 30, y1 = state.offY + state.drawnH + 30;
+      ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(x, state.offY - 18, 6, 0, Math.PI * 2); ctx.fill();
+      let cy = (y0 + y1) / 2;
+      ctx.fillStyle = 'rgba(91,168,255,0.5)';
+      axisArrow(ctx, x - 9, cy, -1, 0, 5);
+      axisArrow(ctx, x + 9, cy, 1, 0, 5);
+    } else {
+      let y = m.axisY, x0 = state.offX - 30, x1 = state.offX + state.drawnW + 30;
+      ctx.moveTo(x0, y); ctx.lineTo(x1, y); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(state.offX - 18, y, 6, 0, Math.PI * 2); ctx.fill();
+      let cx = (x0 + x1) / 2;
+      ctx.fillStyle = 'rgba(91,168,255,0.5)';
+      axisArrow(ctx, cx, y - 9, 0, -1, 5);
+      axisArrow(ctx, cx, y + 9, 0, 1, 5);
+    }
+    ctx.restore();
   }
 
   // ----------------------------------------------------------------- init
@@ -1030,6 +1230,30 @@ RIG.editor = (function () {
     };
     $('chkMesh').onchange = function (e) { state.showMesh = e.target.checked; scheduleRender(); };
     $('chkBones').onchange = function (e) { state.showBones = e.target.checked; scheduleRender(); };
+
+    $('mirrorDir').onchange = function () {
+      state.mirror.direction = this.value;
+      syncMirrorAxisInput();
+      scheduleRender();
+    };
+    $('mirrorScope').onchange = function () { state.mirror.scope = this.value; };
+    $('mirrorConflict').onchange = function () { state.mirror.conflict = this.value; };
+    $('mirrorAxis').onchange = function () {
+      let v = parseFloat(this.value);
+      if (!isFinite(v)) return;
+      if (isVerticalMirror()) state.mirror.axisX = v; else state.mirror.axisY = v;
+      scheduleRender();
+    };
+    $('btnMirrorAxisReset').onclick = function () {
+      if (!state.image) return toast('Load an image first.');
+      resetMirrorAxis();
+      syncMirrorAxisInput();
+      scheduleRender();
+    };
+    $('chkMirrorAxis').onchange = function (e) { state.mirror.show = e.target.checked; scheduleRender(); };
+    $('btnMirrorBones').onclick = doMirrorBones;
+    $('btnMirrorPose').onclick = doMirrorPose;
+    $('btnMirrorAnim').onclick = doMirrorAnimation;
 
     refreshPanels();
   }

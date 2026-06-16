@@ -101,29 +101,53 @@ var RIG = RIG || {};
       });
     }
 
-    // Create a bone from two world-space points (rest pose).
-    addBoneWorld(parentId, sx, sy, ex, ey) {
+    // Local rest transform for a bone spanning two world-space points,
+    // expressed relative to parentId (null → world root). Shared by
+    // addBoneWorld and the mirror engine so the two stay consistent.
+    localFromWorld(parentId, sx, sy, ex, ey) {
       let x = sx, y = sy, parentAngle = 0;
       if (parentId != null) {
         let pi = this.indexOf(parentId);
         if (pi < 0) { parentId = null; }
         else {
-          let inv = M.invert(this.worldMatrices(true)[pi]);
-          let p = M.apply(inv, sx, sy);
+          let pm = this.worldMatrices(true)[pi];
+          let p = M.apply(M.invert(pm), sx, sy);
           x = p.x;
           y = p.y;
-          parentAngle = M.angleOf(this.worldMatrices(true)[pi]);
+          parentAngle = M.angleOf(pm);
         }
       }
-      let bone = new Bone({
+      return {
         parentId: parentId,
         x: x,
         y: y,
         rot: Math.atan2(ey - sy, ex - sx) - parentAngle,
         length: Math.hypot(ex - sx, ey - sy),
-      });
+      };
+    }
+
+    // Create a bone from two world-space points (rest pose).
+    addBoneWorld(parentId, sx, sy, ex, ey) {
+      let bone = new Bone(this.localFromWorld(parentId, sx, sy, ex, ey));
       this.bones.push(bone);
       return bone;
+    }
+
+    // Reorder bones so every parent precedes its children (the invariant
+    // worldMatrices() relies on), preserving relative order where possible.
+    reorder() {
+      let byId = {};
+      this.bones.forEach(function (b) { byId[b.id] = b; });
+      let out = [], placed = {};
+      function place(b) {
+        if (placed[b.id]) return;
+        let parent = b.parentId != null ? byId[b.parentId] : null;
+        if (parent && !placed[parent.id]) place(parent);
+        placed[b.id] = true;
+        out.push(b);
+      }
+      this.bones.forEach(place);
+      this.bones = out;
     }
 
     // Remove a bone and all of its descendants. Returns removed ids.

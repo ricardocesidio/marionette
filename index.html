@@ -30,6 +30,40 @@
     <button id="btnAutoRig" title="Analyse the image and place the skeleton on the character automatically">✨ Auto-detect skeleton</button>
     <button id="btnHumanoid" title="Create a full named rig: spine, head, arms, forearms, hands, thighs, shins, feet">🧍 Humanoid preset</button>
 
+    <h3>Mirror Rig</h3>
+    <label>Direction
+      <select id="mirrorDir" title="Which way to mirror across the axis">
+        <option value="lr">Left → Right</option>
+        <option value="rl">Right → Left</option>
+        <option value="tb">Top → Bottom</option>
+        <option value="bt">Bottom → Top</option>
+      </select>
+    </label>
+    <label>Scope
+      <select id="mirrorScope" title="What to mirror">
+        <option value="selected">Selected bone</option>
+        <option value="chain" selected>Selected chain</option>
+        <option value="side">Entire side</option>
+        <option value="skeleton">Entire skeleton</option>
+      </select>
+    </label>
+    <label>If target exists
+      <select id="mirrorConflict" title="What to do when the mirrored bone already exists">
+        <option value="update" selected>Update existing</option>
+        <option value="copy">Create copy</option>
+        <option value="skip">Skip</option>
+      </select>
+    </label>
+    <div class="mirror-axis-row">
+      <label>Axis</label>
+      <input type="number" id="mirrorAxis" step="1" title="Axis position (drag the knob on the stage, or type here)">
+      <button id="btnMirrorAxisReset" class="mini" title="Reset axis to image center">⌖</button>
+    </div>
+    <label><input type="checkbox" id="chkMirrorAxis" checked> Show mirror axis</label>
+    <button id="btnMirrorBones" title="Rig mode: duplicate the source bones across the axis">⇄ Mirror bones</button>
+    <button id="btnMirrorPose" title="Animate mode: copy the posed side to the other side">⇄ Mirror pose</button>
+    <button id="btnMirrorAnim" title="Animate mode: mirror the whole clip (e.g. a walk cycle)">⇄ Mirror animation</button>
+
     <h3>Mesh</h3>
     <label>Detail
       <input type="range" id="meshDetail" min="10" max="50" value="28">
@@ -43,6 +77,7 @@
       <li>Load a PNG — or hit <b>Generate sample character</b>.</li>
       <li><b>Rig:</b> drag on the image to draw a bone. Drag from a bone's <b>tip</b> to chain a child bone. Click selects, <b>Delete</b> removes.</li>
       <li>Or skip the manual work: <b>✨ Auto-detect skeleton</b> analyses the image and places the bones on the character by itself (best with a transparent or plain background). <b>🧍 Humanoid preset</b> gives the same named bones fitted to the image box instead. Either way, <b>Alt-drag</b> any joint to fine-tune — that works on hand-drawn bones too.</li>
+      <li><b>Mirror Rig:</b> rig one side, then <b>⇄ Mirror bones</b> builds the other across the symmetry axis (drag the axis knob to reposition, or <b>⌖</b> to recenter). In Animate, <b>⇄ Mirror pose / animation</b> flips a pose or a whole walk cycle to the opposite side.</li>
       <li><b>Animate:</b> drag bones to rotate them. <b>Shift-drag</b> the root bone to move the whole character. Keys are saved at the playhead automatically.</li>
       <li>Scrub the timeline, press <b>Space</b> to play.</li>
       <li><b>Export</b> the character, or hit <b>▶ Test in Game</b>.</li>
@@ -90,6 +125,7 @@
 <script src="js/math2d.js"></script>
 <script src="js/model.js"></script>
 <script src="js/autorig.js"></script>
+<script src="js/mirror.js"></script>
 <script src="js/render.js"></script>
 <script src="js/editor.js"></script>
 <script src="js/timeline.js"></script>

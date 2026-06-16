@@ -75,6 +75,26 @@ main { flex: 1; display: flex; min-height: 0; }
 .help li { margin-bottom: 6px; }
 .help b { color: var(--fg); }
 
+.panel select {
+  width: 100%;
+  margin-top: 2px;
+  background: #13151a;
+  border: 1px solid var(--line);
+  color: var(--fg);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font: inherit;
+}
+.mirror-axis-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+.mirror-axis-row label { margin: 0; flex-shrink: 0; }
+.mirror-axis-row input[type="number"] { flex: 1; width: auto; min-width: 0; }
+.panel button.mini { width: auto; margin: 0; padding: 4px 9px; }
+
 .stage-wrap { flex: 1; position: relative; min-width: 0; }
 #stage {
   position: absolute;
