@@ -498,6 +498,7 @@ RIG.editor = (function () {
         if (ctrl) { toggleSelection(bones[bi].id); }
         else { setSelection([bones[bi].id]); }
         refreshPanels();
+        state.drag = { kind: 'translate', boneId: bones[bi].id, lastX: p.x, lastY: p.y, moved: false };
         return;
       }
       if (!ctrl) clearSelection();
@@ -570,6 +571,27 @@ RIG.editor = (function () {
       scheduleRender();
       return;
     }
+    if (d.kind === 'translate') {
+      // Drag the whole bone in world space (origin follows cursor).
+      let dx = p.x - d.lastX, dy = p.y - d.lastY;
+      d.lastX = p.x; d.lastY = p.y;
+      if (Math.abs(dx) > 1 || Math.abs(dy) > 1) d.moved = true;
+      if (d.moved) {
+        let pm = bone.parentId != null ? state.skeleton.worldMatrices(true)[state.skeleton.indexOf(bone.parentId)] : null;
+        if (pm) {
+          let inv = M.invert(pm);
+          bone.x += inv[0] * dx + inv[2] * dy;
+          bone.y += inv[1] * dx + inv[3] * dy;
+        } else {
+          bone.x += dx;
+          bone.y += dy;
+        }
+        invalidateBind();
+        refreshProps();
+        scheduleRender();
+      }
+      return;
+    }
 
     if (d.kind === 'rotate') {
       let ang = Math.atan2(p.y - d.oy, p.x - d.ox);
@@ -599,6 +621,8 @@ RIG.editor = (function () {
       let bone = state.skeleton.addBoneWorld(d.parentId, d.sx, d.sy, d.ex, d.ey);
       setSelection([bone.id]);
       invalidateBind();
+      refreshPanels();
+    } else if (d.kind === 'translate' && !d.moved) {
       refreshPanels();
     } else {
       saveSnapshot();
@@ -879,7 +903,7 @@ RIG.editor = (function () {
     ctx.font = '12px sans-serif';
     ctx.fillText(
       state.mode === 'rig'
-        ? 'RIG — drag: new bone · Tip: child · Alt: adjust · Arrows: nudge · Ctrl+click: multi · Del: remove'
+        ? 'RIG — drag a bone to move it · Tip: child · Alt: adjust · Arrows: nudge · Ctrl+click: multi · Del: remove'
         : 'ANIMATE — drag a bone to rotate · Shift-drag root to move · Space: play',
       12, h - 12);
     ctx.fillText(Math.round(state.cameraZoom * 100) + '%', w - 48, h - 12);
