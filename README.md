@@ -11,6 +11,7 @@
 Marionette Studio lets you take any character image (PNG, JPG, WebP…), draw a skeleton inside it, and bring it to life:
 
 - **Rig mode** — place bones inside the image to build a skeleton
+- **Mirror Rig** — rig one side, then mirror bones, poses, and whole animations across a symmetry axis ([details](#mirror-rig))
 - **Animate mode** — pose the skeleton over time with keyframes; the image bends with the bones
 - **Export** — save the entire rigged character (image + skeleton + mesh + animations) into a single `.marionette.json` file
 - **Game demo** — test your character walking around with arrow keys
@@ -36,8 +37,10 @@ Or double-click `index.html` in most browsers.
    - **Drag bone body** to slide the whole bone
    - **Alt+click a tip** to chain a child bone from it
    - Click empty space to draw a new bone
-   - Click **Humanoid preset** for a full 17-bone skeleton
+   - Click **Humanoid preset** for a full 17-bone skeleton, or **Auto-detect skeleton** to place one from the image silhouette
+   - Rig one side, then **⇄ Mirror bones** to build the other across the symmetry axis
 3. Switch to **Animate mode (2)** — drag bones to pose, keyframes are recorded automatically
+   - **⇄ Mirror pose** flips the posed side to the other; **⇄ Mirror animation** mirrors a whole clip (e.g. a walk cycle)
 4. Press **Play** to see the animation
 5. Click **Test in Game** to run your character in a simple game demo
 
@@ -58,6 +61,49 @@ npm run dist       # macOS .dmg, Windows .exe, Linux .AppImage
 
 ---
 
+## Mirror Rig
+
+Symmetric characters only need half the work — rig one side and mirror the rest. The Mirror panel lives in the left sidebar in **Rig mode**, and its pose/animation actions work in **Animate mode**. Every mirror operation is a single, **undoable** step (`Ctrl/Cmd+Z`).
+
+**Directions** — Left → Right, Right → Left, Top → Bottom, Bottom → Top.
+
+**Scope** — what gets mirrored:
+
+| Scope | Mirrors |
+|---|---|
+| **Selected bone** | just the selected bone(s) |
+| **Selected chain** | the selected bone and all its descendants |
+| **Entire side** | every bone on the source side of the axis (centre bones are left alone) |
+| **Entire skeleton** | both off-axis sides — re-symmetrises the whole rig |
+
+**Symmetry axis** — a draggable on-stage overlay (vertical for left/right, horizontal for top/bottom):
+
+- Defaults to the **image centre**
+- **Drag the knob** at the end of the axis, or type an exact value in the **Axis** field
+- **⌖** resets it back to the image centre
+- Toggle **Show mirror axis** to hide it
+
+**Smart naming** — side tokens are swapped, with case preserved:
+
+```
+left_arm  ⇄  right_arm        arm.L  ⇄  arm.R        arm_R  ⇄  arm_L
+top_wing  ⇄  bottom_wing      wing.Top  ⇄  wing.Bottom
+```
+
+If a bone has no side token, the target side is appended (`.L`/`.R`, or `.Top`/`.Bottom`).
+
+**Conflict handling** — when the mirrored bone already exists:
+
+- **Update existing** (default) — re-mirror in place; running it again never creates duplicates
+- **Create copy** — add a new suffixed bone
+- **Skip** — leave the existing bone untouched
+
+**Geometry** — bones are reflected in world space, so length, hierarchy, and origin/tip placement are all preserved exactly; mirrored children re-parent under their mirrored parents. Mirroring rebinds the mesh, so **auto-weights regenerate** symmetrically.
+
+**Pose & animation** — **⇄ Mirror pose** copies the source side's current pose to the other side (rotation negated, translation flipped on the mirror axis). **⇄ Mirror animation** does the same across every keyframe of the clip, preserving timing and easing — ideal for turning a half-built walk cycle into a full one.
+
+---
+
 ## Project structure
 
 ```
@@ -70,8 +116,9 @@ marionette/
 │   ├── math2d.js           # 2D affine math library
 │   ├── model.js            # Core data model: Bone, Skeleton, Mesh, Clip
 │   ├── autorig.js          # Automatic skeleton detection from image silhouette
+│   ├── mirror.js           # Mirror Rig engine: bone, pose, and animation mirroring
 │   ├── render.js           # Canvas2D renderer (textured triangles, bone drawing)
-│   ├── editor.js           # Editor UI logic (rigging, posing, import/export)
+│   ├── editor.js           # Editor UI logic (rigging, posing, mirroring, import/export)
 │   ├── timeline.js         # Timeline strip and transport controls
 │   ├── main.js             # Bootstrap and animation loop
 │   └── game.js             # Game demo runtime
@@ -80,6 +127,7 @@ marionette/
 │   └── dev.js              # Dev launcher
 └── tests/
     ├── smoke.js            # Core test suite (math, skeleton, skinning, animation)
+    ├── mirror.js           # Mirror Rig test suite (naming, geometry, pose, anim)
     ├── drive.js            # Headless visual test driver
     └── run.sh              # Test runner
 ```
@@ -92,14 +140,17 @@ marionette/
 ┌────────────────────┐     .marionette.json      ┌──────────────────┐
 │  EDITOR            │  ───────────────────────▶ │  GAME RUNTIME    │
 │  index.html        │   image + bones + mesh +  │  game.html       │
-│  rig · animate ·   │   animation keys          │  loads, plays    │
-│  keyframe · export │                           │                  │
+│  rig · mirror ·    │   animation keys          │  loads, plays    │
+│  animate · export  │                           │                  │
 └────────────────────┘                           └──────────────────┘
         both built on the same core ▼
    js/math2d.js    2D affine matrices
    js/model.js     Bone, Skeleton, Mesh (auto-weights, LBS), Clip
+   js/mirror.js    Mirror Rig — symmetry naming + bone/pose/animation reflection
    js/render.js    Canvas2D textured-triangle renderer
 ```
+
+The core modules (`math2d`, `model`, `autorig`, `mirror`) are **DOM-free**, so the same code runs in the editor, in the game runtime, and in Node for the test suite.
 
 ### The character format (`.marionette.json` v1)
 
@@ -116,6 +167,8 @@ marionette/
   "animations": [{ "name": "idle", "duration": 2, "keys": [...] }]
 }
 ```
+
+Mirroring only ever produces ordinary bones, so the format stays **v1** — files round-trip unchanged between versions with and without the Mirror Rig feature.
 
 ---
 
@@ -139,9 +192,13 @@ marionette/
 npm test
 ```
 
-Runs the core math/skinning/animation test suite via Node (108 tests).
+Runs the suites in Node — **160 tests** total: the core math/skinning/animation suite (`smoke.js`, 108) and the Mirror Rig suite (`mirror.js`, 52: naming, single-bone and chain geometry, no-duplicate updates, pose transforms, animation timing/easing, and export/import round-trip).
 
 ---
+
+## What's new
+
+- **Mirror Rig** — mirror bones, poses, and whole animations across a draggable symmetry axis, with smart left/right and top/bottom naming, update/copy/skip conflict handling, and full undo/redo. See [Mirror Rig](#mirror-rig).
 
 ## Recent fixes
 
@@ -159,14 +216,24 @@ Runs the core math/skinning/animation test suite via Node (108 tests).
 
 ## Roadmap
 
+Recently shipped:
+
+- [x] **Mirror Rig** — bones, poses, and animations across a symmetry axis
+
+Planned:
+
 - [ ] Weight painting brush (override auto-weights)
 - [ ] IK chains (drag a hand, the arm follows)
 - [ ] Multiple named animations + blending (walk ↔ run ↔ jump)
+- [ ] Animation clip tags (idle / walk / run / jump / attack)
 - [ ] Easing curves per key
 - [ ] Onion-skinning in the editor
+- [ ] Pose library
+- [ ] Character templates (humanoid, quadruped, bird/winged, creature, face rig)
 - [ ] WebGL renderer (GPU skinning)
 - [ ] Cut-out mode: rigid parts per bone
-- [ ] Export runtimes: PixiJS plugin, Godot importer
+- [ ] Export runtimes: PNG sequence, GIF/WebM, sprite sheet, PixiJS plugin, Godot importer
+- [ ] PWA offline support (service worker)
 - [ ] Physics bones (hair/cloth jiggle)
 
 ---
